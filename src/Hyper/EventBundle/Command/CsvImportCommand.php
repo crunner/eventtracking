@@ -45,6 +45,12 @@ class CsvImportCommand extends ContainerAwareCommand
     
     protected function parseCsvContent($csvFile)
     {
+        // 2015-08-06 - Ding Dong : Added variables to store process information
+        $content_lines = array();
+        $process_results = array();
+        $success_count = 0;
+        $fail_count = 0;
+        $process_start_datetime = time();
 
         $csvMetaReader = new CsvMetaReader();
         $personCsvMongoDbIndex = $csvMetaReader->csvMongoDbIndex('\Hyper\EventBundle\Document\Person');
@@ -78,18 +84,60 @@ class CsvImportCommand extends ContainerAwareCommand
                             $content[$contentIndex][$mongoIndex] = $row[$index];
                        }
                     }
+                    // 2015-08-06 - Ding Dong : Added to include original content line
+                    $content_lines[$contentIndex]["content_raw"] = $content[$contentIndex];
+
                     $rawContent = json_encode($content[$contentIndex]);
+
+                    // 2015-08-06 - Ding Dong  : Added to include JSON version of content line
+                    //$content_lines[$contentIndex]["content_json"] = $rawContent;
+
                     $result = $storageController->storeEventS3(
                         $rawContent,
                         $content[$contentIndex],
                         $amazonBaseURL,
                         $rawLogDir,
                         $s3FolderMappping
+
                     );
+
+                    // 2015-08-06 - Ding Dong : Added condition block added to check if the file was created in S3 bucket and indicate status
+                    if (null != $result) {
+                        // File creation successful
+                        $content_lines[$contentIndex]["s3_path"] = $result;
+                        $content_lines[$contentIndex]["status"] = "Success";
+                        $success_count++;
+                    } else {
+                        // File creation failed
+                        $content_lines[$contentIndex]["s3_path"] ="";
+                        $content_lines[$contentIndex]["status"] = "Failed";
+                        $fail_count++;
+                    }
                 }
                 $i++;
             }
         }
+
+        // 2015-08-06 - Ding Dong : Added block to consolidate process information for display
+        // START
+        $process_end_datetime = time();
+        $timeDiff = $process_start_datetime - $process_end_datetime;
+
+        $process_results["content_count"] = $i - 1;
+        $process_results["processed_count"] = count($content_lines);
+        $process_results["success_count"] = $success_count;
+        $process_results["fail_count"] = $success_count;
+        $process_results["content_lines"] = $content_lines;
+        $process_results["start_datetime"] = $process_start_datetime;
+        $process_results["end_datetime"] = $process_end_datetime;
+        $process_results["elapse_time"] = $timeDiff;
+
+        $process_results_json = json_encode($process_results);
+
+        echo $process_results_json;
+        // END
+
+
         //return $content;
     }
     

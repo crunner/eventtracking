@@ -29,6 +29,7 @@ class StorageControllerV4 extends Controller
     {
         //return new Response('This is postback version 2<hr/>');
         $providerId = $request->get('provider');
+
         $supportProvider = $this->getPostBackProviders();
         if(!empty($providerId) && array_key_exists($providerId,$supportProvider)) {
             $this->postBackProvider = $supportProvider[$providerId];
@@ -57,7 +58,15 @@ class StorageControllerV4 extends Controller
             $csv = $request->files->get('csv');
             $csvRealPath = $csv->getRealPath();
             echo $csvRealPath;
-            exec("php /var/www/html/projects/event_tracking/app/console csv:import --file='".$csvRealPath."' > /dev/null 2>/dev/null &");
+
+            // 2015-08-06 - Ding Dong: Commented original line below
+            //exec("php /var/www/html/projects/event_tracking/app/console csv:import --file='".$csvRealPath."' > /dev/null 2>/dev/null &");
+
+            // 2015-08-06 - Ding Dong : Added line below to accept result from call; Used variable $process_result to capture result in JSON
+            exec("php /var/www/html/projects/event_tracking/app/console csv:import --file='".$csvRealPath."'", $process_result_json);
+
+            // 2015-08-06 - Ding Dong : Commented block below to implement new response
+            /*
             return new Response(
                     json_encode(
                         array(
@@ -83,6 +92,27 @@ class StorageControllerV4 extends Controller
                     )
                 );
             }
+            */
+
+            // 2015-08-06 - Ding Dong : Added block below to create new response
+            // START
+            $response = new Response(
+                json_encode(
+                    array(
+                        'status.'=>'success',
+                        'code'=>'200',
+                        'message'=> 'success - TODO implement audit log',
+                        'upload_tool'=>'http://ec2-52-26-255-227.us-west-2.compute.amazonaws.com/projects/tool/csv_upload.php',
+
+                        // 2015-08-06 - Ding Dong : Added line below to include the process results
+                        'process_results' => $process_result_json
+                    )
+                )
+            );
+
+            //$response->prepare($request);
+            $response->send();
+            // END
         }
         else {
             //improve with Rest API standard later
@@ -451,7 +481,10 @@ class StorageControllerV4 extends Controller
             //echo $fileName."<hr/>";
             $fs->remove($pathGz);
             $fs->remove($pathJson);
-            echo $filePath;
+
+            // 2015-08-06  - Ding Dong: Commented line below so it won't be included in the result of CsvImportCommand::parseCsvContent()
+            //echo $filePath;
+
             return $filePath;
             
         } else {
